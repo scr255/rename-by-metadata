@@ -174,7 +174,7 @@ class RenamerExifTool:
         group["filesize"] = pd.to_numeric(group["File:FileSize"], errors="coerce")
         return group["filesize"].duplicated().any()
 
-    def _collect_files(self) -> List[str]:
+    def collect_files(self) -> List[str]:
         """
         Walk through the source directory and return all non-hidden files (rel paths).
         """
@@ -189,7 +189,7 @@ class RenamerExifTool:
         logger.info(f"Found {len(all_files)} files in {self.dir_sc}")
         return all_files
 
-    def _extract_metadata(self, collected_files: List[str]) -> pd.DataFrame:
+    def extract_metadata(self, collected_files: List[str]) -> pd.DataFrame:
         """
         Use exiftool to gather metadata for each file in batches using parallel processing.
         """
@@ -209,8 +209,10 @@ class RenamerExifTool:
                 all_metadata.extend(batch_metadata)
 
         df = pd.DataFrame(all_metadata)
-        selected_cols = [col for col in RenamerExifTool.COLS if col in df.columns]
-        df = df[selected_cols]
+        for col in RenamerExifTool.COLS:
+            if col not in df.columns:
+                df[col] = pd.NA
+        df = df[RenamerExifTool.COLS]
         if "SourceFile" not in df.columns:
             raise ValueError("Missing 'SourceFile' in exiftool output.")
         df["SourceFile"] = df["SourceFile"].apply(
@@ -608,8 +610,8 @@ class RenamerExifTool:
             logger.info("Using cached metadata DataFrame.")
             df = self.df
         else:
-            files = self._collect_files()
-            df = self._extract_metadata(files)
+            files = self.collect_files()
+            df = self.extract_metadata(files)
             df = self._determine_capture_datetime(df)
             df = self._filter_invalid_dates(df)
             df = self._build_new_filenames(df)
