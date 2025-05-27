@@ -23,34 +23,45 @@ class RenamerExifTool:
 
     Args:
         dir_sc (str): Source directory for original media files.
-        dir_st (str): Staging directory for saving CSV reports.
-        dir_ft (str): Target (fact) directory where renamed files go.
-        path_csv (str): CSV filename (relative to dir_st) for reporting.
     """
 
     VALID_VIDEO_EXTENSIONS = {".avi", ".mov", ".mp4"}
     VALID_PHOTO_EXTENSIONS = {".arw", ".dng", ".nef", ".x3f"}
     COLS = [
         "SourceFile",
-        "File:Directory",
         "File:FileName",
-        "File:FileTypeExtension",
+        "File:Directory",
         "File:FileSize",
-        "QuickTime:Model",
+        "File:FileTypeExtension",
         "QuickTime:CreateDate",
+        "QuickTime:ImageWidth",
+        "QuickTime:ImageHeight",
+        "QuickTime:VideoFrameRate",
+        "QuickTime:Model",
+        "QuickTime:Sharpness",
+        "QuickTime:ColorMode",
+        "QuickTime:MaximumShutterAngle",
+        "QuickTime:AutoISOMax",
+        "QuickTime:AutoISOMin",
+        "QuickTime:FieldOfView",
+        "QuickTime:GoPro_EISE",
+        "QuickTime:GoPro_LOGB",
+        "QuickTime:GoPro_NR01",
         "QuickTime:GoPro_CPIN",
+        "QuickTime:GoPro_EXPX",
+        "QuickTime:GoPro_EXPN",
+        "QuickTime:GoPro_EXPQ",
         "EXIF:Make",
         "EXIF:Model",
+        "EXIF:ImageWidth",
+        "EXIF:ImageHeight",
         "EXIF:CreateDate",
-        "Composite:SubSecCreateDate",
         "MakerNotes:ShutterCount",
+        "Composite:SubSecCreateDate",
     ]
 
-    def __init__(self, dir_sc: str, dir_st: str, dir_ft: str, path_csv: str) -> None:
+    def __init__(self, dir_sc: str) -> None:
         self.dir_sc = dir_sc
-        self.dir_st = dir_st
-        self.dir_ft = dir_ft
-        self.path_csv = path_csv
         self.df: Optional[pd.DataFrame] = None
 
     @staticmethod
@@ -521,12 +532,16 @@ class RenamerExifTool:
         self._build_new_filenames_photos(df)
         return df
 
-    def _rename_files(self, df: pd.DataFrame) -> None:
+    def _rename_files(self, dir_ft: str, df: pd.DataFrame) -> None:
         """
         Move (rename) files from source to target, using the newly built filenames.
         Skips files that have no valid new filename or if the destination file exists.
+
+        Args:
+            dir_ft (str): Target (fact) directory where renamed files go.
+            df: The master DataFrame to update.
         """
-        os.makedirs(self.dir_ft, exist_ok=True)
+        os.makedirs(dir_ft, exist_ok=True)
 
         for _, row in tqdm(df.iterrows(), total=len(df), desc="Renaming files"):
             new_name = row["filename_new"]
@@ -535,7 +550,7 @@ class RenamerExifTool:
                 continue
 
             old_path = os.path.join(self.dir_sc, row["SourceFile"])
-            new_dir = os.path.join(self.dir_ft, row["dir"])
+            new_dir = os.path.join(dir_ft, row["dir"])
             new_path = os.path.join(new_dir, new_name)
 
             if not os.path.exists(old_path):
@@ -595,13 +610,18 @@ class RenamerExifTool:
                     logger.warning(f"Cannot remove {root} {e}")
         logger.info("Completed removal of empty directories")
 
-    def run(self, output: bool = False) -> pd.DataFrame:
+    def run(
+        self, dir_st: str, dir_ft: str, path_csv: str, rename: bool = False
+    ) -> pd.DataFrame:
         """
         Main entrypoint: gather metadata, plan new filenames, generate CSV,
         and optionally rename files.
 
         Args:
-            output (bool): If True, files are actually renamed; if False, only CSV is generated.
+            dir_st (str): Staging directory for saving CSV reports.
+            dir_ft (str): Target (fact) directory where renamed files go.
+            path_csv (str): CSV filename (relative to dir_st) for reporting.
+            rename (bool): If True, files are actually renamed; if False, only CSV is generated.
 
         Returns:
             pd.DataFrame: Final DataFrame with metadata and new filenames.
@@ -617,18 +637,111 @@ class RenamerExifTool:
             df = self._build_new_filenames(df)
             self.df = df
 
-        os.makedirs(self.dir_st, exist_ok=True)
-        out_path = os.path.join(self.dir_st, self.path_csv)
+        os.makedirs(dir_st, exist_ok=True)
+        out_path = os.path.join(dir_st, path_csv)
         try:
             self.df.to_csv(out_path, index=False)
             logger.info(f"CSV report saved to {out_path}")
         except Exception as e:
             logger.error(f"Error saving CSV report {e}")
 
-        if output:
+        if rename:
             self._rename_files(self.df)
             self._remove_empty_dirs(self.dir_sc)
         else:
-            logger.info("[INFO] No rename performed (output=False)")
+            logger.info("[INFO] No rename performed (rename=False)")
 
         return self.df
+
+def check_column_consistency(df, columns_to_check, column_pairs=None):
+    """
+    Check consistency of specified columns within each directory and show anomalous files.
+    Also check if specified column pairs match for all files within each directory.
+
+    Args:
+        df: DataFrame to analyze
+        columns_to_check: List of column names to check for consistency
+        column_pairs: List of tuples, where each tuple contains two column names that should match
+    """
+    # Check consistency for all specified columns
+    all_groups = df.groupby("File:Directory").agg(
+        {col: "nunique" for col in columns_to_check}
+    )
+
+    # Create boolean mask for inconsistencies (values > 1)
+    inconsistencies_mask = all_groups > 1
+
+    # Check column pair matching if specified
+    pair_inconsistencies = {}
+    if column_pairs:
+        for col1, col2 in column_pairs:
+            for directory in df["File:Directory"].unique():
+                dir_files = df[df["File:Directory"] == directory]
+                # Check if col1 and col2 match for all files in this directory
+                mismatched_files = dir_files[dir_files[col1] != dir_files[col2]]
+                if not mismatched_files.empty:
+                    if f"{col1} vs {col2}" not in pair_inconsistencies:
+                        pair_inconsistencies[f"{col1} vs {col2}"] = {}
+                    pair_inconsistencies[f"{col1} vs {col2}"][
+                        directory
+                    ] = mismatched_files
+
+    # Check if any inconsistencies exist
+    has_individual_inconsistencies = inconsistencies_mask.any().any()
+    has_pair_inconsistencies = len(pair_inconsistencies) > 0
+
+    if not has_individual_inconsistencies and not has_pair_inconsistencies:
+        print(
+            "✔️ All directories have consistent values for specified columns and column pairs"
+        )
+
+    # Show individual column inconsistencies
+    if has_individual_inconsistencies:
+        print("❌ Inconsistent groups found:")
+        for column in columns_to_check:
+            inconsistent_dirs = all_groups[all_groups[column] > 1].index
+            if len(inconsistent_dirs) > 0:
+                print(f"{column}")
+                for directory in inconsistent_dirs:
+                    print(f"    {directory}")
+                    dir_files = df[df["File:Directory"] == directory]
+                    value_counts = dir_files[column].value_counts()
+                    most_common_value = value_counts.index[0]
+                    anomalous_files = dir_files[dir_files[column] != most_common_value]
+                    print(f"        Most common value: {most_common_value}")
+                    if not anomalous_files.empty:
+                        print(f"        Anomalous files:")
+                        for _, file_row in anomalous_files.iterrows():
+                            print(
+                                f"            {file_row['SourceFile']} (value: {file_row[column]})"
+                            )
+                    print()
+
+    # Show column pair inconsistencies
+    if has_pair_inconsistencies:
+        for pair_name, directories in pair_inconsistencies.items():
+            print(f"{pair_name}")
+            for directory, mismatched_files in directories.items():
+                print(f"    {directory}")
+                print(f"        Files with mismatched values:")
+                for _, file_row in mismatched_files.iterrows():
+                    col1, col2 = pair_name.split(" vs ")
+                    print(
+                        f"            {file_row['SourceFile']} ({col1}: {file_row[col1]}, {col2}: {file_row[col2]})"
+                    )
+                print()
+
+    # Report consistent values for all columns
+    print("📊 Consistent values report:")
+    for column in columns_to_check:
+        consistent_dirs = all_groups[all_groups[column] == 1].index
+        if len(consistent_dirs) > 0:
+            print(f"\n{column}:")
+            for directory in consistent_dirs:
+                dir_files = df[df["File:Directory"] == directory]
+                consistent_value = dir_files[column].iloc[
+                    0
+                ]  # All values are the same, so take the first
+                print(f"    {directory}: {consistent_value}")
+        else:
+            print(f"\n{column}: No directories with consistent values")
