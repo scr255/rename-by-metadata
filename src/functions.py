@@ -653,6 +653,7 @@ class RenamerExifTool:
 
         return self.df
 
+
 def check_column_consistency(df, columns_to_check, column_pairs=None):
     """
     Check consistency of specified columns within each directory and show anomalous files.
@@ -736,12 +737,14 @@ def check_column_consistency(df, columns_to_check, column_pairs=None):
     for column in columns_to_check:
         consistent_dirs = all_groups[all_groups[column] == 1].index
         if len(consistent_dirs) > 0:
-            print(f"\n{column}:")
+            print(f"{column}:")
             for directory in consistent_dirs:
                 dir_files = df[df["File:Directory"] == directory]
                 consistent_value = dir_files[column].iloc[
                     0
                 ]  # All values are the same, so take the first
                 print(f"    {directory}: {consistent_value}")
+            print()
         else:
-            print(f"\n{column}: No directories with consistent values")
+            print(f"{column}: No directories with consistent values")
+            print()
