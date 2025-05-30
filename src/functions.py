@@ -51,6 +51,7 @@ class RenamerExifTool:
         "QuickTime:GoPro_EXPX",
         "QuickTime:GoPro_EXPN",
         "QuickTime:GoPro_EXPQ",
+        "QuickTime:Encoder",
         "EXIF:Make",
         "EXIF:Model",
         "EXIF:ImageWidth",
@@ -223,6 +224,11 @@ class RenamerExifTool:
         for col in RenamerExifTool.COLS:
             if col not in df.columns:
                 df[col] = pd.NA
+        l = []
+        for col in df:
+            if col in RenamerExifTool.COLS:
+                l.append(col)
+        print(l)
         df = df[RenamerExifTool.COLS]
         if "SourceFile" not in df.columns:
             raise ValueError("Missing 'SourceFile' in exiftool output.")
@@ -693,16 +699,16 @@ def check_column_consistency(df, columns_to_check, column_pairs=None):
 
     if not has_individual_inconsistencies and not has_pair_inconsistencies:
         print(
-            "✔️ All directories have consistent values for specified columns and column pairs"
+            "✔️✔️✔️ All directories have consistent values for specified columns and column pairs."
         )
 
     # Show individual column inconsistencies
     if has_individual_inconsistencies:
-        print("❌ Inconsistent groups found:")
+        print("❌❌❌ Inconsistent groups found:")
         for column in columns_to_check:
             inconsistent_dirs = all_groups[all_groups[column] > 1].index
             if len(inconsistent_dirs) > 0:
-                print(f"{column}")
+                print(f"🦑 {column}")
                 for directory in inconsistent_dirs:
                     print(f"    {directory}")
                     dir_files = df[df["File:Directory"] == directory]
@@ -721,7 +727,7 @@ def check_column_consistency(df, columns_to_check, column_pairs=None):
     # Show column pair inconsistencies
     if has_pair_inconsistencies:
         for pair_name, directories in pair_inconsistencies.items():
-            print(f"{pair_name}")
+            print(f"⚠️ {pair_name}")
             for directory, mismatched_files in directories.items():
                 print(f"    {directory}")
                 print(f"        Files with mismatched values:")
@@ -733,11 +739,11 @@ def check_column_consistency(df, columns_to_check, column_pairs=None):
                 print()
 
     # Report consistent values for all columns
-    print("📊 Consistent values report:")
+    print("📊📊📊 Consistent values report:")
     for column in columns_to_check:
         consistent_dirs = all_groups[all_groups[column] == 1].index
         if len(consistent_dirs) > 0:
-            print(f"{column}:")
+            print(f"🐬 {column}:")
             for directory in consistent_dirs:
                 dir_files = df[df["File:Directory"] == directory]
                 consistent_value = dir_files[column].iloc[
