@@ -652,7 +652,7 @@ class RenamerExifTool:
             logger.error(f"Error saving CSV report {e}")
 
         if rename:
-            self._rename_files(self.df)
+            self._rename_files(dir_ft, self.df)
             self._remove_empty_dirs(self.dir_sc)
         else:
             logger.info("[INFO] No rename performed (rename=False)")
