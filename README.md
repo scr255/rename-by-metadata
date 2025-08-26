@@ -1,4 +1,4 @@
-# Rename-By-Metadata
+# rename-by-metadata
 Rename media files.
 
 📅 Based on `CreateDate` and `SubSecCreateDate` extracted with ExifTool
