@@ -1,5 +1,1 @@
-black
-isort
-jupyterlab_code_formatter
-jupyterlab-git
 pyexiftool==0.5.6

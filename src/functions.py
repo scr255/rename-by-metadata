@@ -273,7 +273,7 @@ class RenamerExifTool:
         for _, row in invalid.iterrows():
             logger.warning(f"No valid date for {row['SourceFile']}")
         df = df[~df["datetime_capture"].isna()].copy()
-        df["datetime_capture_sec"] = df["datetime_capture"].dt.floor("S")
+        df["datetime_capture_sec"] = df["datetime_capture"].dt.floor("s")
         return df
 
     def _tie_break_by_size(
@@ -689,9 +689,9 @@ def check_column_consistency(df, columns_to_check, column_pairs=None):
                 if not mismatched_files.empty:
                     if f"{col1} vs {col2}" not in pair_inconsistencies:
                         pair_inconsistencies[f"{col1} vs {col2}"] = {}
-                    pair_inconsistencies[f"{col1} vs {col2}"][
-                        directory
-                    ] = mismatched_files
+                    pair_inconsistencies[f"{col1} vs {col2}"][directory] = (
+                        mismatched_files
+                    )
 
     # Check if any inconsistencies exist
     has_individual_inconsistencies = inconsistencies_mask.any().any()

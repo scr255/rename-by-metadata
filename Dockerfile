@@ -1,19 +1,13 @@
-FROM jupyter/scipy-notebook:aarch64-ubuntu-22.04
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+COPY requirements.txt ./requirements.txt
 
 USER root
-WORKDIR /tmp
+RUN apt-get update && apt-get install -y --no-install-recommends libimage-exiftool-perl=12.76+dfsg-1 && rm -rf /var/lib/apt/lists/*
+USER ${USERNAME}
 
-RUN apt-get update && apt-get install -y libimage-exiftool-perl=12.40+dfsg-1
-
-USER ${NB_USER}
-WORKDIR ${HOME}
-
-COPY requirements.txt /tmp
-RUN pip install -r /tmp/requirements.txt
-
-COPY jupyter_notebook_config.py /home/jovyan/.jupyter/
-
-RUN jupyter labextension disable "@jupyterlab/apputils-extension:announcements"
-
-ENTRYPOINT ["start-notebook.py"]
-CMD ["--LabApp.check_for_updates_class=jupyterlab.NeverCheckForUpdate"]
+RUN set -eux; \
+    if [ -s requirements.txt ]; then \
+    uv pip install -r requirements.txt -p /opt/venv/bin/python; \
+    fi
