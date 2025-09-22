@@ -12,7 +12,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - .:/workspace
+      - .:/workspace/bind
     restart: unless-stopped
 
   # OpenVSCode — CPU profile ARM
@@ -28,53 +28,5 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - .:/workspace
-    restart: unless-stopped
-
-  # OpenVSCode — GPU profile AMD
-  vscode_amd_gpu:
-    profiles: [ "amd_gpu" ]
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        BASE_IMAGE: ghcr.io/scr255/vscode-uv-container:amd64-ubuntu24.04-py3.13-cu12.9.1-consume
-    image: vscode-uv-expanded:amd64-gpu
-    ports:
-      - "3000:3000"
-    volumes:
-      - .:/workspace
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [ gpu ]
-    gpus: all
-    restart: unless-stopped
-
-  # OpenVSCode — GPU profile ARM
-  vscode_arm_gpu:
-    profiles: [ "arm_gpu" ]
-    platform: linux/arm64
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        BASE_IMAGE: ghcr.io/scr255/vscode-uv-container:arm64-ubuntu24.04-py3.13-cu12.9.1-consume
-    image: vscode-uv-expanded:arm64-gpu
-    ports:
-      - "3000:3000"
-    volumes:
-      - .:/workspace
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [ gpu ]
-    gpus: all
+      - .:/workspace/bind
     restart: unless-stopped

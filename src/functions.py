@@ -717,7 +717,7 @@ def check_column_consistency(df, columns_to_check, column_pairs=None):
                     anomalous_files = dir_files[dir_files[column] != most_common_value]
                     print(f"        Most common value: {most_common_value}")
                     if not anomalous_files.empty:
-                        print(f"        Anomalous files:")
+                        print("        Anomalous files:")
                         for _, file_row in anomalous_files.iterrows():
                             print(
                                 f"            {file_row['SourceFile']} (value: {file_row[column]})"
@@ -730,7 +730,7 @@ def check_column_consistency(df, columns_to_check, column_pairs=None):
             print(f"⚠️ {pair_name}")
             for directory, mismatched_files in directories.items():
                 print(f"    {directory}")
-                print(f"        Files with mismatched values:")
+                print("        Files with mismatched values:")
                 for _, file_row in mismatched_files.iterrows():
                     col1, col2 = pair_name.split(" vs ")
                     print(
