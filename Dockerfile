@@ -2,6 +2,10 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends libimage-exiftool-perl=12.76+dfsg-1 && rm -rf /var/lib/apt/lists/*
+USER ${USERNAME}
+
 WORKDIR /opt/consume
 
 # Bring in your inputs (optional files)
