@@ -173,3 +173,6 @@ ft/
 
 # Ignore ds_store
 .DS_Store
+
+# Ignore .venvs
+.venvs
