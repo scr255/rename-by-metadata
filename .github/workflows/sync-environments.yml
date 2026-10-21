@@ -1,0 +1,131 @@
+name: Sync environment builders from docker-venv-shim
+
+# Pulls the Docker-backed environment builders from the public upstream repo
+# scr255/docker-venv-shim into environments/. Run it from the Actions tab
+# ("Run workflow") and tick what you want to sync.
+#
+# This file is the canonical copy: it lives in docker-venv-shim and is inherited
+# by repos created from that template. It also syncs itself, so editing it there
+# propagates to every client on their next run.
+#
+# Always synced: environments/build_kernel.sh and environments/python.sh.
+# Optional (checkboxes):
+#   - Sample environment       -> environments/base/
+#   - Azure builders           -> environments/build_kernel_azure_local.sh,
+#                                 environments/build_kernel_azure_remote.sh,
+#                                 environments/config_azure_example.json
+#   - Sample Azure environment -> environments/base_azure/
+#
+# Only the paths above are touched; anything else you keep under environments/
+# is left exactly as it is.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sample_environment:
+        description: "Sample environment (environments/base)"
+        type: boolean
+        default: false
+      azure_builders:
+        description: "Azure builders (build_kernel_azure_local.sh, build_kernel_azure_remote.sh, config_azure_example.json)"
+        type: boolean
+        default: false
+      sample_azure_environment:
+        description: "Sample Azure environment (environments/base_azure)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-environments
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # Inert in the template itself; only meaningful in a client repo.
+    if: github.repository != 'scr255/docker-venv-shim'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Sync from docker-venv-shim
+        env:
+          SAMPLE_ENVIRONMENT: ${{ inputs.sample_environment }}
+          AZURE_BUILDERS: ${{ inputs.azure_builders }}
+          SAMPLE_AZURE_ENVIRONMENT: ${{ inputs.sample_azure_environment }}
+        run: |
+          set -euo pipefail
+
+          UPSTREAM_URL="https://github.com/scr255/docker-venv-shim.git"
+          UPSTREAM_BRANCH="main"
+          WORKFLOW=".github/workflows/sync-environments.yml"
+
+          # Always synced.
+          FILES=(
+            "environments/build_kernel.sh"
+            "environments/python.sh"
+          )
+          DIRS=()
+
+          if [ "$SAMPLE_ENVIRONMENT" = "true" ]; then
+            DIRS+=("environments/base")
+          fi
+          if [ "$AZURE_BUILDERS" = "true" ]; then
+            FILES+=(
+              "environments/build_kernel_azure_local.sh"
+              "environments/build_kernel_azure_remote.sh"
+              "environments/config_azure_example.json"
+            )
+          fi
+          if [ "$SAMPLE_AZURE_ENVIRONMENT" = "true" ]; then
+            DIRS+=("environments/base_azure")
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch --quiet "$UPSTREAM_URL" "$UPSTREAM_BRANCH"
+          up="$(git rev-parse FETCH_HEAD)"
+
+          # Files copied verbatim; if upstream deletes one, ours is dropped.
+          for f in "${FILES[@]}"; do
+            if git cat-file -e "$up:$f" 2>/dev/null; then
+              mkdir -p -- "$(dirname -- "$f")"
+              git show "$up:$f" > "$f"
+              git add -- "$f"
+            else
+              git rm -fq --ignore-unmatch -- "$f" 2>/dev/null || true
+              rm -f -- "$f"
+            fi
+          done
+
+          # Directories replaced wholesale.
+          if [ "${#DIRS[@]}" -gt 0 ]; then
+            for d in "${DIRS[@]}"; do
+              git rm -rfq --ignore-unmatch -- "$d" 2>/dev/null || true
+              rm -rf -- "$d"
+              if git cat-file -e "$up:$d" 2>/dev/null; then
+                mkdir -p -- "$d"
+                git archive "$up:$d" | tar -x -C "$d"
+                git add -- "$d"
+              fi
+            done
+          fi
+
+          # Keep this workflow itself current, but never delete it when upstream
+          # does not have it yet (e.g. before it is pushed to the template).
+          if git cat-file -e "$up:$WORKFLOW" 2>/dev/null; then
+            git show "$up:$WORKFLOW" > "$WORKFLOW"
+            git add -- "$WORKFLOW"
+          fi
+
+          if git diff --cached --quiet; then
+            echo "Already in sync with ${UPSTREAM_BRANCH} @ ${up:0:7}"
+            exit 0
+          fi
+
+          git commit -m "Sync environment builders from docker-venv-shim @ ${up:0:7}"
+          git push
